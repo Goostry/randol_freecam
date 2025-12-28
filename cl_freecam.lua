@@ -1,7 +1,6 @@
 local Config = lib.load('config')
 local FREE_CAM
 local offsetRotX, offsetRotY, offsetRotZ = 0.0, 0.0, 0.0
-local offsetCoords = {x = 0.0, y = 0.0, z = 0.0}
 local precision = 1.0
 local speed = 1.0
 local currFilter = 1
@@ -152,11 +151,12 @@ local function processCamControls()
     if #(currentPos - vec3(newPos.x, newPos.y, newPos.z)) > Config.MaxDistance then
         if not IsEntityDead(cache.ped) then
             lib.notify({ type = 'error', description = 'You went too far using the free camera.' })
+            DrawSphere(currentPos.x, currentPos.y, currentPos.z, Config.MaxDistance, 255, 0, 0, 25)
         end
         -- camActive = false
         -- lib.hideMenu()
-    else 
-        
+    else
+
         SetFocusArea(newPos.x, newPos.y, newPos.z, 0.0, 0.0, 0.0)
         SetCamCoord(FREE_CAM, newPos.x, newPos.y, newPos.z)
         SetCamRot(FREE_CAM, offsetRotX, offsetRotY, offsetRotZ, 2)
@@ -185,7 +185,7 @@ local function toggleCam()
         end)
     end
 end
- 
+
 RegisterCommand(Config.CommandName, function()
     lib.registerMenu({
         id = 'cinematic_cam_menu',
