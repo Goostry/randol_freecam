@@ -141,23 +141,25 @@ end
 local function processCamControls()
     DisableFirstPersonCamThisFrame()
 
-    local camCoords = GetCamCoord(FREE_CAM)
-    local newPos = processNewPos(camCoords.x, camCoords.y, camCoords.z)
-    SetFocusArea(newPos.x, newPos.y, newPos.z, 0.0, 0.0, 0.0)
-    SetCamCoord(FREE_CAM, newPos.x, newPos.y, newPos.z)
-    SetCamRot(FREE_CAM, offsetRotX, offsetRotY, offsetRotZ, 2)
 
     for k, v in pairs(Config.DisabledControls) do
         DisableControlAction(0, v, true)
     end
 
+    local camCoords = GetCamCoord(FREE_CAM)
+    local newPos = processNewPos(camCoords.x, camCoords.y, camCoords.z)
     local currentPos = GetEntityCoords(cache.ped)
     if #(currentPos - vec3(newPos.x, newPos.y, newPos.z)) > Config.MaxDistance then
         if not IsEntityDead(cache.ped) then
             lib.notify({ type = 'error', description = 'You went too far using the free camera.' })
         end
-        camActive = false
-        lib.hideMenu()
+        -- camActive = false
+        -- lib.hideMenu()
+    else 
+        
+        SetFocusArea(newPos.x, newPos.y, newPos.z, 0.0, 0.0, 0.0)
+        SetCamCoord(FREE_CAM, newPos.x, newPos.y, newPos.z)
+        SetCamRot(FREE_CAM, offsetRotX, offsetRotY, offsetRotZ, 2)
     end
 
     if dofOn then
