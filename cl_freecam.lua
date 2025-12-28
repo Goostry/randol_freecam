@@ -236,6 +236,13 @@ RegisterCommand(Config.CommandName, function()
     lib.showMenu('cinematic_cam_menu')
 end)
 
+RegisterCommand(Config.ToggleCommandName, function()
+    toggleCam()
+    lib.showMenu('cinematic_cam_menu')
+end)
+
+RegisterKeyMapping(Config.ToggleCommandName, 'Freecam Menu', 'keyboard', 'F7')
+
 AddEventHandler('gameEventTriggered', function(event, data)
     if event ~= 'CEventNetworkEntityDamage' then return end
     local victim, victimDied = data[1], data[4]

@@ -1,5 +1,6 @@
 return {
     CommandName = 'ccam', -- /ccam
+    ToggleCommandName = '+cam', -- /ccam
     MaxDistance = 10.0, -- how far we can go before it kills the camera.
     MinSpeed = 0.1,
     MaxSpeed = 10.0,
@@ -10,7 +11,7 @@ return {
     FarDof = { '0.1', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7', '0.8', '0.9', '1.0', '1.1','1.2', '1.3', '1.4', '1.5', '1.6', '1.7', '1.8', '1.9', '2.0'},
     StrengthDof = { '0.1', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7', '0.8', '0.9', '1.0', },
     Filters = {
-        'None',                   
+        'None',
         'AP1_01_B_IntRefRange',
         'AP1_01_C_NoFog',
         'AirRaceBoost01',
