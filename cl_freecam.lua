@@ -10,6 +10,7 @@ local dofStrength = 0.5
 local dofFar = 150.0
 local dofNear = 0.10
 local barsOn = false
+local isMenuOpen = false
 
 local function toggleMap()
     local isRadarVisible = not IsRadarHidden()
@@ -186,59 +187,67 @@ local function toggleCam()
     end
 end
 
-RegisterCommand(Config.CommandName, function()
-    lib.registerMenu({
-        id = 'cinematic_cam_menu',
-        title = 'Cinematic Camera',
-        position = 'top-right',
-        onSideScroll = function(selected, scrollIndex, args)
-            if selected == 2 then
-                SetTimecycleModifier(Config.Filters[scrollIndex])
-                currFilter = scrollIndex
-            elseif selected == 6 then
-                dofNear = tonumber(Config.NearDof[scrollIndex])
-                SetCamNearDof(FREE_CAM, dofNear)
-            elseif selected == 7 then
-                dofFar = tonumber(Config.FarDof[scrollIndex])
-                SetCamFarDof(FREE_CAM, dofFar)
-            elseif selected == 8 then
-                dofStrength = tonumber(Config.StrengthDof[scrollIndex])
-                SetCamDofStrength(FREE_CAM, dofStrength)
-            end
-        end,
-        onCheck = function(selected, checked, args)
-            if selected == 1 then
-                toggleCam()
-            elseif selected == 3 then
-                toggleDof()
-            elseif selected == 4 then
-                toggleBars()
-            elseif selected == 5 then
-                toggleMap()
-            end
-        end,
-        options = {
-            {label = 'Toggle Camera', checked = camActive, icon = 'camera'},
-            {label = 'Camera Filters', values = Config.Filters, icon = 'camera', defaultIndex = currFilter, description = 'Use arrow keys to navigate filters. Hit enter to reset the filter to normal.'},
-            {label = 'Toggle Depth of Field', checked = dofOn, icon = 'eye', description = 'Toggle Depth of Field effect.'},
-            {label = 'Toggle Black Bars', checked = barsOn, icon = 'film', description = 'Toggle cinematic bars.'},
-            {label = 'Toggle Minimap', checked = not IsRadarHidden(), icon = 'map', description = 'Toggle the minimap.'},
-            {label = 'Depth of Field Near', values = Config.NearDof, icon = 'left-right', description = 'Adjust the near focus distance.'},
-            {label = 'Depth of Field Far', values = Config.FarDof, icon = 'left-right', description = 'Adjust the far focus distance.'},
-            {label = 'Depth of Field Strength', values = Config.StrengthDof, icon = 'left-right', description = 'Adjust the strength of the DoF effect.'},
-        }
-    }, function(selected, scrollIndex, args)
+lib.registerMenu({
+    id = 'cinematic_cam_menu',
+    title = 'Cinematic Camera',
+    position = 'top-right',
+    onSideScroll = function(selected, scrollIndex, args)
         if selected == 2 then
-            ClearTimecycleModifier()
-            currFilter = 1
+            SetTimecycleModifier(Config.Filters[scrollIndex])
+            currFilter = scrollIndex
+        elseif selected == 6 then
+            dofNear = tonumber(Config.NearDof[scrollIndex])
+            SetCamNearDof(FREE_CAM, dofNear)
+        elseif selected == 7 then
+            dofFar = tonumber(Config.FarDof[scrollIndex])
+            SetCamFarDof(FREE_CAM, dofFar)
+        elseif selected == 8 then
+            dofStrength = tonumber(Config.StrengthDof[scrollIndex])
+            SetCamDofStrength(FREE_CAM, dofStrength)
         end
-    end)
+    end,
+    onCheck = function(selected, checked, args)
+        if selected == 1 then
+            toggleCam()
+        elseif selected == 3 then
+            toggleDof()
+        elseif selected == 4 then
+            toggleBars()
+        elseif selected == 5 then
+            toggleMap()
+        end
+    end,
+    options = {
+        {label = 'Toggle Camera', checked = camActive, icon = 'camera'},
+        {label = 'Camera Filters', values = Config.Filters, icon = 'camera', defaultIndex = currFilter, description = 'Use arrow keys to navigate filters. Hit enter to reset the filter to normal.'},
+        {label = 'Toggle Depth of Field', checked = dofOn, icon = 'eye', description = 'Toggle Depth of Field effect.'},
+        {label = 'Toggle Black Bars', checked = barsOn, icon = 'film', description = 'Toggle cinematic bars.'},
+        {label = 'Toggle Minimap', checked = not IsRadarHidden(), icon = 'map', description = 'Toggle the minimap.'},
+        {label = 'Depth of Field Near', values = Config.NearDof, icon = 'left-right', description = 'Adjust the near focus distance.'},
+        {label = 'Depth of Field Far', values = Config.FarDof, icon = 'left-right', description = 'Adjust the far focus distance.'},
+        {label = 'Depth of Field Strength', values = Config.StrengthDof, icon = 'left-right', description = 'Adjust the strength of the DoF effect.'},
+    }
+}, function(selected, scrollIndex, args)
+    if selected == 2 then
+        ClearTimecycleModifier()
+        currFilter = 1
+    end
+end)
+
+RegisterCommand(Config.CommandName, function()
     lib.showMenu('cinematic_cam_menu')
+    isMenuOpen = true
 end)
 
 RegisterCommand(Config.ToggleCommandName, function()
     toggleCam()
-    lib.showMenu('cinematic_cam_menu')
+    if isMenuOpen then
+        lib.hideMenu()
+        isMenuOpen = false
+    else
+        isMenuOpen = true
+        lib.showMenu('cinematic_cam_menu')
+    end
 end)
 
 RegisterKeyMapping(Config.ToggleCommandName, 'Freecam Menu', 'keyboard', 'F7')
