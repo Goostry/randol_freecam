@@ -82,30 +82,36 @@ local function toggleDof()
 end
 
 local function processNewPos(x, y, z)
-    local newPos = {x = x, y = y, z = z}
+    local currentPos = vector3(x, y, z)
     local moveSpeed = 0.1 * speed
+    
+    -- On récupère les vecteurs de direction basés sur la rotation actuelle
+    local rot = vector3(offsetRotX, offsetRotY, offsetRotZ)
+    local forwardVector = GetDirectionFromRotation(rot)
+    
+    -- Le Right Vector est simplement le Forward tourné de 90° sur le plan horizontal
+    local rightVector = vector3(forwardVector.y, -forwardVector.x, 0.0)
 
-    local function updatePosition(multX, multY, multZ, direction)
-        newPos.x = newPos.x + direction * moveSpeed * multX
-        newPos.y = newPos.y - direction * moveSpeed * multY
+    local velocity = vector3(0, 0, 0)
+
+    -- ZQSD / WASD (Mouvement relatif au regard)
+    if IsDisabledControlPressed(1, 32) then -- W
+        velocity = velocity + (forwardVector * moveSpeed)
+    elseif IsDisabledControlPressed(1, 33) then -- S
+        velocity = velocity - (forwardVector * moveSpeed)
     end
 
-    if IsDisabledControlPressed(1, 32) then -- W (forwards)
-        updatePosition(Sin(offsetRotZ), Cos(offsetRotZ), Sin(offsetRotX), -1)
-    elseif IsDisabledControlPressed(1, 33) then -- S (backwards)
-        updatePosition(Sin(offsetRotZ), Cos(offsetRotZ), Sin(offsetRotX), 1)
+    if IsDisabledControlPressed(1, 34) then -- A
+        velocity = velocity - (rightVector * moveSpeed)
+    elseif IsDisabledControlPressed(1, 35) then -- D
+        velocity = velocity + (rightVector * moveSpeed)
     end
 
-    if IsDisabledControlPressed(1, 34) then -- A (left)
-        updatePosition(Sin(offsetRotZ + 90.0), Cos(offsetRotZ + 90.0), Sin(offsetRotY), -1)
-    elseif IsDisabledControlPressed(1, 35) then -- D (right)
-        updatePosition(Sin(offsetRotZ + 90.0), Cos(offsetRotZ + 90.0), Sin(offsetRotY), 1)
-    end
-
-    if IsDisabledControlPressed(1, 22) then -- Space (up)
-        newPos.z += moveSpeed
-    elseif IsDisabledControlPressed(1, 20) then -- Z (down)
-        newPos.z -= moveSpeed
+    -- Montée / Descente (Axe Z pur, indépendant du regard)
+    if IsDisabledControlPressed(1, 22) then -- Space (Haut)
+        velocity = velocity + vector3(0, 0, moveSpeed)
+    elseif IsDisabledControlPressed(1, 20) then -- Z (Bas)
+        velocity = velocity - vector3(0, 0, moveSpeed)
     end
 
     if IsDisabledControlPressed(1, 21) then -- Shift (hold)
@@ -121,6 +127,8 @@ local function processNewPos(x, y, z)
             setNewFov(1.0)
         end
     end
+    -- On calcule la position souhaitée
+    local idealPos = currentPos + velocity
 
     offsetRotX = offsetRotX - (GetDisabledControlNormal(1, 2) * precision * 8.0)
     offsetRotZ = offsetRotZ - (GetDisabledControlNormal(1, 1) * precision * 8.0)
@@ -135,7 +143,7 @@ local function processNewPos(x, y, z)
     offsetRotY = math.clamp(offsetRotY, -90.0, 90.0)
     offsetRotZ = offsetRotZ % 360.0
 
-    return newPos
+    return idealPos
 end
 
 local function processCamControls()
@@ -149,6 +157,7 @@ local function processCamControls()
     local camCoords = GetCamCoord(FREE_CAM)
     local newPos = processNewPos(camCoords.x, camCoords.y, camCoords.z)
     local currentPos = GetEntityCoords(cache.ped)
+
     if #(currentPos - vec3(newPos.x, newPos.y, newPos.z)) > Config.MaxDistance then
         if not IsEntityDead(cache.ped) then
             -- lib.notify({ type = 'error', description = 'You went too far using the free camera.' })
@@ -157,9 +166,32 @@ local function processCamControls()
         -- camActive = false
         -- lib.hideMenu()
     else
+        local rayHandle = StartShapeTestSweptSphere(
+            camCoords.x, camCoords.y, camCoords.z, 
+            newPos.x, newPos.y, newPos.z, 
+            0.4, 17, 0, 0
+        )
+        local _, hit, endCoords, surfaceNormal, _ = GetShapeTestResult(rayHandle)
+        if hit == 0 then
+            -- Si la voie est libre, on bouge normalement
+            SetCamCoord(FREE_CAM, newPos.x, newPos.y, newPos.z)
+        else
+            local targetVec = vec3(newPos.x, newPos.y, newPos.z)
+            local moveDir = targetVec - camCoords
 
-        SetFocusArea(newPos.x, newPos.y, newPos.z, 0.0, 0.0, 0.0)
-        SetCamCoord(FREE_CAM, newPos.x, newPos.y, newPos.z)
+            -- Calcul du produit scalaire pour savoir de combien on "fonce" dans le mur
+            local dot = moveDir.x * surfaceNormal.x + moveDir.y * surfaceNormal.y + moveDir.z * surfaceNormal.z
+
+            -- On soustrait la force qui pousse dans le mur pour ne garder que le glissement latéral
+            local slideVec = moveDir - (surfaceNormal * dot)
+            local finalPos = camCoords + slideVec
+
+            -- On ajoute un petit recul de sécurité par rapport au mur
+            finalPos = finalPos + (surfaceNormal * 0.05)
+
+            SetCamCoord(FREE_CAM, finalPos.x, finalPos.y, finalPos.z)
+        end
+        SetFocusArea(GetCamCoord(FREE_CAM), 0.0, 0.0, 0.0)
         SetCamRot(FREE_CAM, offsetRotX, offsetRotY, offsetRotZ, 2)
     end
 
@@ -262,3 +294,10 @@ AddEventHandler('gameEventTriggered', function(event, data)
         end
     end
 end)
+
+function GetDirectionFromRotation(rotation)
+    local z = math.rad(rotation.z)
+    local x = math.rad(rotation.x)
+    local num = math.abs(math.cos(x))
+    return vector3(-math.sin(z) * num, math.cos(z) * num, math.sin(x))
+end
