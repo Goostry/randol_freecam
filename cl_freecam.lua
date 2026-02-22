@@ -151,8 +151,8 @@ local function processCamControls()
     local currentPos = GetEntityCoords(cache.ped)
     if #(currentPos - vec3(newPos.x, newPos.y, newPos.z)) > Config.MaxDistance then
         if not IsEntityDead(cache.ped) then
-            lib.notify({ type = 'error', description = 'You went too far using the free camera.' })
-            DrawSphere(currentPos.x, currentPos.y, currentPos.z, Config.MaxDistance, 255, 0, 0, 25)
+            -- lib.notify({ type = 'error', description = 'You went too far using the free camera.' })
+            DrawSphere(currentPos.x, currentPos.y, currentPos.z, Config.MaxDistance, 255, 0, 0, 0.1)
         end
         -- camActive = false
         -- lib.hideMenu()
@@ -234,12 +234,12 @@ lib.registerMenu({
     end
 end)
 
-RegisterCommand(Config.CommandName, function()
-    lib.showMenu('cinematic_cam_menu')
-    isMenuOpen = true
-end)
+-- RegisterCommand(Config.CommandName, function()
+--     lib.showMenu('cinematic_cam_menu')
+--     isMenuOpen = true
+-- end)
 
-RegisterCommand(Config.ToggleCommandName, function()
+RegisterCommand(Config.CommandName, function()
     toggleCam()
     if isMenuOpen then
         lib.hideMenu()
@@ -250,7 +250,7 @@ RegisterCommand(Config.ToggleCommandName, function()
     end
 end)
 
-RegisterKeyMapping(Config.ToggleCommandName, 'Freecam Menu', 'keyboard', 'F7')
+RegisterKeyMapping(Config.CommandName, 'Freecam Menu', 'keyboard', 'F7')
 
 AddEventHandler('gameEventTriggered', function(event, data)
     if event ~= 'CEventNetworkEntityDamage' then return end
