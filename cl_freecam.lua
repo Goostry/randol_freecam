@@ -1,7 +1,6 @@
 local Config = lib.load('config')
 local FREE_CAM
 local offsetRotX, offsetRotY, offsetRotZ = 0.0, 0.0, 0.0
-local offsetCoords = {x = 0.0, y = 0.0, z = 0.0}
 local precision = 1.0
 local speed = 1.0
 local currFilter = 1
@@ -11,6 +10,7 @@ local dofStrength = 0.5
 local dofFar = 150.0
 local dofNear = 0.10
 local barsOn = false
+local isMenuOpen = false
 
 local function toggleMap()
     local isRadarVisible = not IsRadarHidden()
@@ -82,30 +82,36 @@ local function toggleDof()
 end
 
 local function processNewPos(x, y, z)
-    local newPos = {x = x, y = y, z = z}
+    local currentPos = vector3(x, y, z)
     local moveSpeed = 0.1 * speed
+    
+    -- On récupère les vecteurs de direction basés sur la rotation actuelle
+    local rot = vector3(offsetRotX, offsetRotY, offsetRotZ)
+    local forwardVector = GetDirectionFromRotation(rot)
+    
+    -- Le Right Vector est simplement le Forward tourné de 90° sur le plan horizontal
+    local rightVector = vector3(forwardVector.y, -forwardVector.x, 0.0)
 
-    local function updatePosition(multX, multY, multZ, direction)
-        newPos.x = newPos.x + direction * moveSpeed * multX
-        newPos.y = newPos.y - direction * moveSpeed * multY
+    local velocity = vector3(0, 0, 0)
+
+    -- ZQSD / WASD (Mouvement relatif au regard)
+    if IsDisabledControlPressed(1, 32) then -- W
+        velocity = velocity + (forwardVector * moveSpeed)
+    elseif IsDisabledControlPressed(1, 33) then -- S
+        velocity = velocity - (forwardVector * moveSpeed)
     end
 
-    if IsDisabledControlPressed(1, 32) then -- W (forwards)
-        updatePosition(Sin(offsetRotZ), Cos(offsetRotZ), Sin(offsetRotX), -1)
-    elseif IsDisabledControlPressed(1, 33) then -- S (backwards)
-        updatePosition(Sin(offsetRotZ), Cos(offsetRotZ), Sin(offsetRotX), 1)
+    if IsDisabledControlPressed(1, 34) then -- A
+        velocity = velocity - (rightVector * moveSpeed)
+    elseif IsDisabledControlPressed(1, 35) then -- D
+        velocity = velocity + (rightVector * moveSpeed)
     end
 
-    if IsDisabledControlPressed(1, 34) then -- A (left)
-        updatePosition(Sin(offsetRotZ + 90.0), Cos(offsetRotZ + 90.0), Sin(offsetRotY), -1)
-    elseif IsDisabledControlPressed(1, 35) then -- D (right)
-        updatePosition(Sin(offsetRotZ + 90.0), Cos(offsetRotZ + 90.0), Sin(offsetRotY), 1)
-    end
-
-    if IsDisabledControlPressed(1, 22) then -- Space (up)
-        newPos.z += moveSpeed
-    elseif IsDisabledControlPressed(1, 20) then -- Z (down)
-        newPos.z -= moveSpeed
+    -- Montée / Descente (Axe Z pur, indépendant du regard)
+    if IsDisabledControlPressed(1, 22) then -- Space (Haut)
+        velocity = velocity + vector3(0, 0, moveSpeed)
+    elseif IsDisabledControlPressed(1, 20) then -- Z (Bas)
+        velocity = velocity - vector3(0, 0, moveSpeed)
     end
 
     if IsDisabledControlPressed(1, 21) then -- Shift (hold)
@@ -121,6 +127,8 @@ local function processNewPos(x, y, z)
             setNewFov(1.0)
         end
     end
+    -- On calcule la position souhaitée
+    local idealPos = currentPos + velocity
 
     offsetRotX = offsetRotX - (GetDisabledControlNormal(1, 2) * precision * 8.0)
     offsetRotZ = offsetRotZ - (GetDisabledControlNormal(1, 1) * precision * 8.0)
@@ -135,7 +143,7 @@ local function processNewPos(x, y, z)
     offsetRotY = math.clamp(offsetRotY, -90.0, 90.0)
     offsetRotZ = offsetRotZ % 360.0
 
-    return newPos
+    return idealPos
 end
 
 local function processCamControls()
@@ -149,16 +157,41 @@ local function processCamControls()
     local camCoords = GetCamCoord(FREE_CAM)
     local newPos = processNewPos(camCoords.x, camCoords.y, camCoords.z)
     local currentPos = GetEntityCoords(cache.ped)
+
     if #(currentPos - vec3(newPos.x, newPos.y, newPos.z)) > Config.MaxDistance then
         if not IsEntityDead(cache.ped) then
-            lib.notify({ type = 'error', description = 'You went too far using the free camera.' })
+            -- lib.notify({ type = 'error', description = 'You went too far using the free camera.' })
+            DrawSphere(currentPos.x, currentPos.y, currentPos.z, Config.MaxDistance, 255, 0, 0, 0.1)
         end
         -- camActive = false
         -- lib.hideMenu()
-    else 
-        
-        SetFocusArea(newPos.x, newPos.y, newPos.z, 0.0, 0.0, 0.0)
-        SetCamCoord(FREE_CAM, newPos.x, newPos.y, newPos.z)
+    else
+        local rayHandle = StartShapeTestSweptSphere(
+            camCoords.x, camCoords.y, camCoords.z, 
+            newPos.x, newPos.y, newPos.z, 
+            0.4, 17, 0, 0
+        )
+        local _, hit, endCoords, surfaceNormal, _ = GetShapeTestResult(rayHandle)
+        if hit == 0 then
+            -- Si la voie est libre, on bouge normalement
+            SetCamCoord(FREE_CAM, newPos.x, newPos.y, newPos.z)
+        else
+            local targetVec = vec3(newPos.x, newPos.y, newPos.z)
+            local moveDir = targetVec - camCoords
+
+            -- Calcul du produit scalaire pour savoir de combien on "fonce" dans le mur
+            local dot = moveDir.x * surfaceNormal.x + moveDir.y * surfaceNormal.y + moveDir.z * surfaceNormal.z
+
+            -- On soustrait la force qui pousse dans le mur pour ne garder que le glissement latéral
+            local slideVec = moveDir - (surfaceNormal * dot)
+            local finalPos = camCoords + slideVec
+
+            -- On ajoute un petit recul de sécurité par rapport au mur
+            finalPos = finalPos + (surfaceNormal * 0.05)
+
+            SetCamCoord(FREE_CAM, finalPos.x, finalPos.y, finalPos.z)
+        end
+        SetFocusArea(GetCamCoord(FREE_CAM), 0.0, 0.0, 0.0)
         SetCamRot(FREE_CAM, offsetRotX, offsetRotY, offsetRotZ, 2)
     end
 
@@ -185,56 +218,71 @@ local function toggleCam()
         end)
     end
 end
- 
-RegisterCommand(Config.CommandName, function()
-    lib.registerMenu({
-        id = 'cinematic_cam_menu',
-        title = 'Cinematic Camera',
-        position = 'top-right',
-        onSideScroll = function(selected, scrollIndex, args)
-            if selected == 2 then
-                SetTimecycleModifier(Config.Filters[scrollIndex])
-                currFilter = scrollIndex
-            elseif selected == 6 then
-                dofNear = tonumber(Config.NearDof[scrollIndex])
-                SetCamNearDof(FREE_CAM, dofNear)
-            elseif selected == 7 then
-                dofFar = tonumber(Config.FarDof[scrollIndex])
-                SetCamFarDof(FREE_CAM, dofFar)
-            elseif selected == 8 then
-                dofStrength = tonumber(Config.StrengthDof[scrollIndex])
-                SetCamDofStrength(FREE_CAM, dofStrength)
-            end
-        end,
-        onCheck = function(selected, checked, args)
-            if selected == 1 then
-                toggleCam()
-            elseif selected == 3 then
-                toggleDof()
-            elseif selected == 4 then
-                toggleBars()
-            elseif selected == 5 then
-                toggleMap()
-            end
-        end,
-        options = {
-            {label = 'Toggle Camera', checked = camActive, icon = 'camera'},
-            {label = 'Camera Filters', values = Config.Filters, icon = 'camera', defaultIndex = currFilter, description = 'Use arrow keys to navigate filters. Hit enter to reset the filter to normal.'},
-            {label = 'Toggle Depth of Field', checked = dofOn, icon = 'eye', description = 'Toggle Depth of Field effect.'},
-            {label = 'Toggle Black Bars', checked = barsOn, icon = 'film', description = 'Toggle cinematic bars.'},
-            {label = 'Toggle Minimap', checked = not IsRadarHidden(), icon = 'map', description = 'Toggle the minimap.'},
-            {label = 'Depth of Field Near', values = Config.NearDof, icon = 'left-right', description = 'Adjust the near focus distance.'},
-            {label = 'Depth of Field Far', values = Config.FarDof, icon = 'left-right', description = 'Adjust the far focus distance.'},
-            {label = 'Depth of Field Strength', values = Config.StrengthDof, icon = 'left-right', description = 'Adjust the strength of the DoF effect.'},
-        }
-    }, function(selected, scrollIndex, args)
+
+lib.registerMenu({
+    id = 'cinematic_cam_menu',
+    title = 'Cinematic Camera',
+    position = 'top-right',
+    onSideScroll = function(selected, scrollIndex, args)
         if selected == 2 then
-            ClearTimecycleModifier()
-            currFilter = 1
+            SetTimecycleModifier(Config.Filters[scrollIndex])
+            currFilter = scrollIndex
+        elseif selected == 6 then
+            dofNear = tonumber(Config.NearDof[scrollIndex])
+            SetCamNearDof(FREE_CAM, dofNear)
+        elseif selected == 7 then
+            dofFar = tonumber(Config.FarDof[scrollIndex])
+            SetCamFarDof(FREE_CAM, dofFar)
+        elseif selected == 8 then
+            dofStrength = tonumber(Config.StrengthDof[scrollIndex])
+            SetCamDofStrength(FREE_CAM, dofStrength)
         end
-    end)
-    lib.showMenu('cinematic_cam_menu')
+    end,
+    onCheck = function(selected, checked, args)
+        if selected == 1 then
+            toggleCam()
+        elseif selected == 3 then
+            toggleDof()
+        elseif selected == 4 then
+            toggleBars()
+        elseif selected == 5 then
+            toggleMap()
+        end
+    end,
+    options = {
+        {label = 'Toggle Camera', checked = camActive, icon = 'camera'},
+        {label = 'Camera Filters', values = Config.Filters, icon = 'camera', defaultIndex = currFilter, description = 'Use arrow keys to navigate filters. Hit enter to reset the filter to normal.'},
+        {label = 'Toggle Depth of Field', checked = dofOn, icon = 'eye', description = 'Toggle Depth of Field effect.'},
+        {label = 'Toggle Black Bars', checked = barsOn, icon = 'film', description = 'Toggle cinematic bars.'},
+        {label = 'Toggle Minimap', checked = not IsRadarHidden(), icon = 'map', description = 'Toggle the minimap.'},
+        {label = 'Depth of Field Near', values = Config.NearDof, icon = 'left-right', description = 'Adjust the near focus distance.'},
+        {label = 'Depth of Field Far', values = Config.FarDof, icon = 'left-right', description = 'Adjust the far focus distance.'},
+        {label = 'Depth of Field Strength', values = Config.StrengthDof, icon = 'left-right', description = 'Adjust the strength of the DoF effect.'},
+    }
+}, function(selected, scrollIndex, args)
+    if selected == 2 then
+        ClearTimecycleModifier()
+        currFilter = 1
+    end
 end)
+
+-- RegisterCommand(Config.CommandName, function()
+--     lib.showMenu('cinematic_cam_menu')
+--     isMenuOpen = true
+-- end)
+
+RegisterCommand(Config.CommandName, function()
+    toggleCam()
+    if isMenuOpen then
+        lib.hideMenu()
+        isMenuOpen = false
+    else
+        isMenuOpen = true
+        lib.showMenu('cinematic_cam_menu')
+    end
+end)
+
+RegisterKeyMapping(Config.CommandName, 'Freecam Menu', 'keyboard', 'F7')
 
 AddEventHandler('gameEventTriggered', function(event, data)
     if event ~= 'CEventNetworkEntityDamage' then return end
@@ -246,3 +294,10 @@ AddEventHandler('gameEventTriggered', function(event, data)
         end
     end
 end)
+
+function GetDirectionFromRotation(rotation)
+    local z = math.rad(rotation.z)
+    local x = math.rad(rotation.x)
+    local num = math.abs(math.cos(x))
+    return vector3(-math.sin(z) * num, math.cos(z) * num, math.sin(x))
+end
