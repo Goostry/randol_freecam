@@ -5,6 +5,8 @@ local precision = 1.0
 local speed = 1.0
 local currFilter = 1
 local camActive = false
+local camFrozen = false
+local freezeCamOnClose = false
 local dofOn = false
 local dofStrength = 0.5
 local dofFar = 150.0
@@ -47,6 +49,8 @@ local function resetEverything()
     dofNear = 0.10
     dofOn = false
     barsOn = false
+    camActive = false
+    camFrozen = false
 end
 
 local function setNewFov(setNewFov)
@@ -200,23 +204,51 @@ local function processCamControls()
     end
 end
 
-local function toggleCam()
-    camActive = not camActive
-    if camActive then
+-- Starts (or resumes) the freecam. If a frozen cam already exists, it is reused
+-- from its current position/rotation instead of being recreated.
+local function startCam()
+    if camActive then return end
+    camActive = true
+    camFrozen = false
+
+    if not DoesCamExist(FREE_CAM) then
         ClearFocus()
         FREE_CAM = CreateCamWithParams('DEFAULT_SCRIPTED_CAMERA', GetEntityCoords(cache.ped), 0, 0, 0, GetGameplayCamFov() * 1.0)
         SetCamActive(FREE_CAM, true)
         RenderScriptCams(true, false, 0, true, false)
         SetCamAffectsAiming(FREE_CAM, false)
-
-        CreateThread(function()
-            while camActive do
-                processCamControls()
-                Wait(0)
-            end
-            resetEverything()
-        end)
     end
+
+    CreateThread(function()
+        while camActive do
+            processCamControls()
+            Wait(0)
+        end
+        if not camFrozen then
+            resetEverything()
+        end
+    end)
+end
+
+-- Stops the freecam movement loop. When `freeze` is true, the scripted camera
+-- stays rendered exactly where it was left, and control is handed back to the
+-- player instead of tearing the camera down.
+local function stopCam(freeze)
+    if not camActive then return end
+    camActive = false
+    camFrozen = freeze and true or false
+end
+
+local function toggleCam()
+    if camActive then
+        stopCam(false)
+    else
+        startCam()
+    end
+end
+
+local function toggleFreezeOnClose()
+    freezeCamOnClose = not freezeCamOnClose
 end
 
 lib.registerMenu({
@@ -247,7 +279,13 @@ lib.registerMenu({
             toggleBars()
         elseif selected == 5 then
             toggleMap()
+        elseif selected == 9 then
+            toggleFreezeOnClose()
         end
+    end,
+    onClose = function(keyPressed)
+        isMenuOpen = false
+        stopCam(freezeCamOnClose)
     end,
     options = {
         {label = 'Toggle Camera', checked = camActive, icon = 'camera'},
@@ -258,6 +296,7 @@ lib.registerMenu({
         {label = 'Depth of Field Near', values = Config.NearDof, icon = 'left-right', description = 'Adjust the near focus distance.'},
         {label = 'Depth of Field Far', values = Config.FarDof, icon = 'left-right', description = 'Adjust the far focus distance.'},
         {label = 'Depth of Field Strength', values = Config.StrengthDof, icon = 'left-right', description = 'Adjust the strength of the DoF effect.'},
+        {label = 'Freeze Camera on Close', checked = freezeCamOnClose, icon = 'snowflake', description = 'When enabled, closing the menu leaves the camera frozen in place while you move freely.'},
     }
 }, function(selected, scrollIndex, args)
     if selected == 2 then
@@ -266,18 +305,12 @@ lib.registerMenu({
     end
 end)
 
--- RegisterCommand(Config.CommandName, function()
---     lib.showMenu('cinematic_cam_menu')
---     isMenuOpen = true
--- end)
-
 RegisterCommand(Config.CommandName, function()
-    toggleCam()
     if isMenuOpen then
         lib.hideMenu()
-        isMenuOpen = false
     else
         isMenuOpen = true
+        startCam()
         lib.showMenu('cinematic_cam_menu')
     end
 end)
