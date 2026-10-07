@@ -6,7 +6,9 @@ local speed = 1.0
 local currFilter = 1
 local camActive = false
 local camFrozen = false
-local freezeCamOnClose = false
+local freezeMode = 'off' -- 'off' | 'static' | 'follow'
+local followActive = false
+local followOffset = vector3(0.0, 0.0, 0.0)
 local dofOn = false
 local dofStrength = 0.5
 local dofFar = 150.0
@@ -51,6 +53,7 @@ local function resetEverything()
     barsOn = false
     camActive = false
     camFrozen = false
+    followActive = false
 end
 
 local function setNewFov(setNewFov)
@@ -204,10 +207,36 @@ local function processCamControls()
     end
 end
 
+-- Keeps the frozen camera translating with the player at the same relative
+-- offset it had the moment it was frozen. Rotation stays fixed (whatever it
+-- was at freeze time) and player input is never touched by this thread.
+local function startFollowCam()
+    if followActive or not DoesCamExist(FREE_CAM) then return end
+    followActive = true
+
+    local playerCoords = GetEntityCoords(cache.ped)
+    local camCoords = GetCamCoord(FREE_CAM)
+    followOffset = camCoords - playerCoords
+
+    CreateThread(function()
+        while followActive and camFrozen and DoesCamExist(FREE_CAM) do
+            local newCoords = GetEntityCoords(cache.ped) + followOffset
+            SetCamCoord(FREE_CAM, newCoords.x, newCoords.y, newCoords.z)
+            Wait(0)
+        end
+        followActive = false
+    end)
+end
+
+local function stopFollowCam()
+    followActive = false
+end
+
 -- Starts (or resumes) the freecam. If a frozen cam already exists, it is reused
 -- from its current position/rotation instead of being recreated.
 local function startCam()
     if camActive then return end
+    stopFollowCam()
     camActive = true
     camFrozen = false
 
@@ -230,25 +259,35 @@ local function startCam()
     end)
 end
 
--- Stops the freecam movement loop. When `freeze` is true, the scripted camera
--- stays rendered exactly where it was left, and control is handed back to the
--- player instead of tearing the camera down.
-local function stopCam(freeze)
+-- Stops the freecam movement loop.
+--   'off'    -> full reset, camera destroyed, control fully restored.
+--   'static' -> camera stays exactly where it was left.
+--   'follow' -> camera keeps its rotation, but keeps translating with the player.
+-- In both freeze cases, control is handed back to the player immediately.
+local function stopCam(mode)
     if not camActive then return end
     camActive = false
-    camFrozen = freeze and true or false
+
+    if mode == 'static' then
+        camFrozen = true
+    elseif mode == 'follow' then
+        camFrozen = true
+        startFollowCam()
+    else
+        camFrozen = false
+    end
 end
 
 local function toggleCam()
     if camActive then
-        stopCam(false)
+        stopCam('off')
     else
         startCam()
     end
 end
 
-local function toggleFreezeOnClose()
-    freezeCamOnClose = not freezeCamOnClose
+local function setFreezeMode(mode)
+    freezeMode = (freezeMode == mode) and 'off' or mode
 end
 
 lib.registerMenu({
@@ -280,12 +319,14 @@ lib.registerMenu({
         elseif selected == 5 then
             toggleMap()
         elseif selected == 9 then
-            toggleFreezeOnClose()
+            setFreezeMode('static')
+        elseif selected == 10 then
+            setFreezeMode('follow')
         end
     end,
     onClose = function(keyPressed)
         isMenuOpen = false
-        stopCam(freezeCamOnClose)
+        stopCam(freezeMode)
     end,
     options = {
         {label = 'Toggle Camera', checked = camActive, icon = 'camera'},
@@ -296,7 +337,8 @@ lib.registerMenu({
         {label = 'Depth of Field Near', values = Config.NearDof, icon = 'left-right', description = 'Adjust the near focus distance.'},
         {label = 'Depth of Field Far', values = Config.FarDof, icon = 'left-right', description = 'Adjust the far focus distance.'},
         {label = 'Depth of Field Strength', values = Config.StrengthDof, icon = 'left-right', description = 'Adjust the strength of the DoF effect.'},
-        {label = 'Freeze Camera on Close', checked = freezeCamOnClose, icon = 'snowflake', description = 'When enabled, closing the menu leaves the camera frozen in place while you move freely.'},
+        {label = 'Freeze Camera on Close (Static)', checked = freezeMode == 'static', icon = 'snowflake', description = 'Closing the menu leaves the camera frozen exactly in place.'},
+        {label = 'Freeze Camera on Close (Follow Player)', checked = freezeMode == 'follow', icon = 'video', description = 'Closing the menu keeps the camera at the same angle and distance, following you as you move.'},
     }
 }, function(selected, scrollIndex, args)
     if selected == 2 then
