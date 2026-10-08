@@ -327,10 +327,6 @@ local function startFollowCam()
     CreateThread(function()
         while followActive and camFrozen and DoesCamExist(FREE_CAM) do
 
-            DisableControlAction(0, 1, true) -- Look left/right
-            DisableControlAction(0, 2, true) -- Look up/down
-            DisableFirstPersonCamThisFrame()
-
             local newPlayerCoords = GetEntityCoords(cache.ped)
             local headingDelta = GetEntityHeading(cache.ped) - followBaseHeading
             local rotatedOffset = rotateOffsetByHeading(followOffset, headingDelta)
