@@ -244,9 +244,41 @@ local function processNewPos(x, y, z)
     return idealPos
 end
 
+-- In front of the ped, looking at it, pulled back if a wall is in the way
+local function getDefaultCamPlacement()
+    local pedCoords = GetEntityCoords(cache.ped)
+    local coords = GetOffsetFromEntityInWorldCoords(cache.ped, 0.0, Config.StartDistance, Config.StartHeight)
+    local rot = vector3(0.0, 0.0, GetEntityHeading(cache.ped) + 180.0)
+
+    local probe = StartExpensiveSynchronousShapeTestLosProbe(pedCoords.x, pedCoords.y, coords.z, coords.x, coords.y, coords.z, 17, cache.ped, 0)
+    local _, hit, hitCoords = GetShapeTestResult(probe)
+    if hit == 1 then
+        local origin = vector3(pedCoords.x, pedCoords.y, coords.z)
+        coords = hitCoords - (hitCoords - origin) * (0.3 / math.max(#(hitCoords - origin), 0.3))
+    end
+
+    return coords, rot
+end
+
+local function isCamOutOfRange()
+    return not hasBypassPermission and #(GetCamCoord(FREE_CAM) - GetEntityCoords(cache.ped)) > Config.MaxDistance
+end
+
+local function snapCamToPed()
+    local coords, rot = getDefaultCamPlacement()
+    SetCamCoord(FREE_CAM, coords.x, coords.y, coords.z)
+    SetCamRot(FREE_CAM, rot.x, rot.y, rot.z, 2)
+    SetFocusArea(coords.x, coords.y, coords.z, 0.0, 0.0, 0.0)
+    offsetRotX, offsetRotY, offsetRotZ = rot.x, rot.y, rot.z % 360.0
+end
+
 local function processCamControls()
     DisableFirstPersonCamThisFrame()
 
+    -- The ped left the allowed area (e.g. driving away): bring the cam back instead of leaving it stuck
+    if isCamOutOfRange() then
+        snapCamToPed()
+    end
 
     for k, v in pairs(Config.DisabledControls) do
         DisableControlAction(0, v, true)
@@ -352,20 +384,10 @@ local function startCam()
 
     if not DoesCamExist(FREE_CAM) then
         ClearFocus()
-        local pedCoords = GetEntityCoords(cache.ped)
-        local startCoords = GetOffsetFromEntityInWorldCoords(cache.ped, 0.0, Config.StartDistance, Config.StartHeight)
-        local startRot = vector3(0.0, 0.0, GetEntityHeading(cache.ped) + 180.0)
-
-        -- Don't spawn inside a wall standing in front of the ped
-        local probe = StartExpensiveSynchronousShapeTestLosProbe(pedCoords.x, pedCoords.y, startCoords.z, startCoords.x, startCoords.y, startCoords.z, 17, cache.ped, 0)
-        local _, hit, hitCoords = GetShapeTestResult(probe)
-        if hit == 1 then
-            local origin = vector3(pedCoords.x, pedCoords.y, startCoords.z)
-            startCoords = hitCoords - (hitCoords - origin) * (0.3 / math.max(#(hitCoords - origin), 0.3))
-        end
+        local startCoords, startRot = getDefaultCamPlacement()
 
         if lastCamOffset and (hasBypassPermission or #lastCamOffset <= Config.MaxDistance) then
-            startCoords, startRot = startCoords + lastCamOffset, lastCamRot
+            startCoords, startRot = GetEntityCoords(cache.ped) + lastCamOffset, lastCamRot
         end
 
         offsetRotX, offsetRotY, offsetRotZ = startRot.x, startRot.y, startRot.z % 360.0
@@ -399,6 +421,15 @@ local function stopCam(mode)
 
     if mode == 'static' then
         camFrozen = true
+
+        CreateThread(function()
+            while camFrozen and not followActive and DoesCamExist(FREE_CAM) do
+                if isCamOutOfRange() then
+                    snapCamToPed()
+                end
+                Wait(250)
+            end
+        end)
     elseif mode == 'follow' then
         camFrozen = true
         startFollowCam()
