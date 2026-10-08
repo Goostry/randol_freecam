@@ -1,4 +1,5 @@
 local Config = lib.load('config')
+lib.locale()
 local FREE_CAM
 local offsetRotX, offsetRotY, offsetRotZ = 0.0, 0.0, 0.0
 local precision = 1.0
@@ -9,12 +10,15 @@ local camFrozen = false
 local freezeMode = 'off' -- 'off' | 'static' | 'follow'
 local followActive = false
 local followOffset = vector3(0.0, 0.0, 0.0)
+local followBaseHeading = 0.0
+local followBaseRot = vector3(0.0, 0.0, 0.0)
 local dofOn = false
 local dofStrength = 0.5
 local dofFar = 150.0
 local dofNear = 0.10
 local barsOn = false
 local isMenuOpen = false
+local instructionalScaleform = nil
 
 local function toggleMap()
     local isRadarVisible = not IsRadarHidden()
@@ -54,6 +58,65 @@ local function resetEverything()
     camActive = false
     camFrozen = false
     followActive = false
+
+    if instructionalScaleform then
+        SetScaleformMovieAsNoLongerNeeded(instructionalScaleform)
+        instructionalScaleform = nil
+    end
+end
+
+-- Builds and loads the native "instructional buttons" scaleform (the same
+-- one GTA's singleplayer uses for control hints), showing the key currently
+-- bound to each control so it adapts automatically to the player's layout
+-- and device (keyboard or controller).
+local function buildInstructionalButtons()
+    instructionalScaleform = RequestScaleformMovie('instructional_buttons')
+    while not HasScaleformMovieLoaded(instructionalScaleform) do
+        Wait(0)
+    end
+
+    BeginScaleformMovieMethod(instructionalScaleform, 'CLEAR_ALL')
+    EndScaleformMovieMethod()
+
+    BeginScaleformMovieMethod(instructionalScaleform, 'SET_CLEAR_SPACE')
+    ScaleformMovieMethodAddParamInt(200)
+    EndScaleformMovieMethod()
+
+    local groups = {
+        {controls = {32, 33, 34, 35}, label = locale('ctrl_move')}, -- W A S D
+        {controls = {22, 20}, label = locale('ctrl_vertical')}, -- Space / Duck
+        {controls = {44, 38}, label = locale('ctrl_roll')}, -- Q / E
+        {controls = {14, 15}, label = locale('ctrl_zoom')}, -- Mouse wheel
+        {controls = {21, 15}, label = locale('ctrl_speed')}, -- Shift + wheel
+        {controls = {2}, label = locale('ctrl_look')}, -- Mouse
+    }
+
+    for i = 1, #groups do
+        BeginScaleformMovieMethod(instructionalScaleform, 'SET_DATA_SLOT')
+        ScaleformMovieMethodAddParamInt(i - 1)
+        for _, control in ipairs(groups[i].controls) do
+            ScaleformMovieMethodAddParamTextureNameString(GetControlInstructionalButton(2, control, true))
+        end
+        ScaleformMovieMethodAddParamTextureNameString(groups[i].label)
+        EndScaleformMovieMethod()
+    end
+
+    BeginScaleformMovieMethod(instructionalScaleform, 'DRAW_INSTRUCTIONAL_BUTTONS')
+    EndScaleformMovieMethod()
+
+    BeginScaleformMovieMethod(instructionalScaleform, 'SET_BACKGROUND_COLOUR')
+    ScaleformMovieMethodAddParamInt(0)
+    ScaleformMovieMethodAddParamInt(0)
+    ScaleformMovieMethodAddParamInt(0)
+    ScaleformMovieMethodAddParamInt(80)
+    EndScaleformMovieMethod()
+end
+
+local function destroyInstructionalButtons()
+    if instructionalScaleform then
+        SetScaleformMovieAsNoLongerNeeded(instructionalScaleform)
+        instructionalScaleform = nil
+    end
 end
 
 local function setNewFov(setNewFov)
@@ -89,19 +152,17 @@ local function toggleDof()
 end
 
 local function processNewPos(x, y, z)
+
     local currentPos = vector3(x, y, z)
     local moveSpeed = 0.1 * speed
-    
-    -- On récupère les vecteurs de direction basés sur la rotation actuelle
+
     local rot = vector3(offsetRotX, offsetRotY, offsetRotZ)
     local forwardVector = GetDirectionFromRotation(rot)
-    
-    -- Le Right Vector est simplement le Forward tourné de 90° sur le plan horizontal
+
     local rightVector = vector3(forwardVector.y, -forwardVector.x, 0.0)
 
     local velocity = vector3(0, 0, 0)
 
-    -- ZQSD / WASD (Mouvement relatif au regard)
     if IsDisabledControlPressed(1, 32) then -- W
         velocity = velocity + (forwardVector * moveSpeed)
     elseif IsDisabledControlPressed(1, 33) then -- S
@@ -114,7 +175,6 @@ local function processNewPos(x, y, z)
         velocity = velocity + (rightVector * moveSpeed)
     end
 
-    -- Montée / Descente (Axe Z pur, indépendant du regard)
     if IsDisabledControlPressed(1, 22) then -- Space (Haut)
         velocity = velocity + vector3(0, 0, moveSpeed)
     elseif IsDisabledControlPressed(1, 20) then -- Z (Bas)
@@ -134,7 +194,7 @@ local function processNewPos(x, y, z)
             setNewFov(1.0)
         end
     end
-    -- On calcule la position souhaitée
+
     local idealPos = currentPos + velocity
 
     offsetRotX = offsetRotX - (GetDisabledControlNormal(1, 2) * precision * 8.0)
@@ -166,38 +226,38 @@ local function processCamControls()
     local currentPos = GetEntityCoords(cache.ped)
 
     if #(currentPos - vec3(newPos.x, newPos.y, newPos.z)) > Config.MaxDistance then
+
         if not IsEntityDead(cache.ped) then
-            -- lib.notify({ type = 'error', description = 'You went too far using the free camera.' })
             DrawSphere(currentPos.x, currentPos.y, currentPos.z, Config.MaxDistance, 255, 0, 0, 0.1)
         end
-        -- camActive = false
-        -- lib.hideMenu()
+
     else
+
         local rayHandle = StartShapeTestSweptSphere(
-            camCoords.x, camCoords.y, camCoords.z, 
-            newPos.x, newPos.y, newPos.z, 
+            camCoords.x, camCoords.y, camCoords.z,
+            newPos.x, newPos.y, newPos.z,
             0.4, 17, 0, 0
         )
+
         local _, hit, endCoords, surfaceNormal, _ = GetShapeTestResult(rayHandle)
+
         if hit == 0 then
-            -- Si la voie est libre, on bouge normalement
+
             SetCamCoord(FREE_CAM, newPos.x, newPos.y, newPos.z)
         else
             local targetVec = vec3(newPos.x, newPos.y, newPos.z)
             local moveDir = targetVec - camCoords
 
-            -- Calcul du produit scalaire pour savoir de combien on "fonce" dans le mur
             local dot = moveDir.x * surfaceNormal.x + moveDir.y * surfaceNormal.y + moveDir.z * surfaceNormal.z
 
-            -- On soustrait la force qui pousse dans le mur pour ne garder que le glissement latéral
             local slideVec = moveDir - (surfaceNormal * dot)
             local finalPos = camCoords + slideVec
 
-            -- On ajoute un petit recul de sécurité par rapport au mur
             finalPos = finalPos + (surfaceNormal * 0.05)
 
             SetCamCoord(FREE_CAM, finalPos.x, finalPos.y, finalPos.z)
         end
+
         SetFocusArea(GetCamCoord(FREE_CAM), 0.0, 0.0, 0.0)
         SetCamRot(FREE_CAM, offsetRotX, offsetRotY, offsetRotZ, 2)
     end
@@ -205,23 +265,44 @@ local function processCamControls()
     if dofOn then
         SetUseHiDof()
     end
+
+    if instructionalScaleform then
+        DrawScaleformMovieFullscreen(instructionalScaleform, 255, 255, 255, 255)
+    end
 end
 
--- Keeps the frozen camera translating with the player at the same relative
--- offset it had the moment it was frozen. Rotation stays fixed (whatever it
--- was at freeze time) and player input is never touched by this thread.
+local function rotateOffsetByHeading(offset, deltaDeg)
+    local rad = math.rad(deltaDeg)
+    local cosA, sinA = math.cos(rad), math.sin(rad)
+    return vector3(
+        offset.x * cosA - offset.y * sinA,
+        offset.x * sinA + offset.y * cosA,
+        offset.z
+    )
+end
+
 local function startFollowCam()
+
     if followActive or not DoesCamExist(FREE_CAM) then return end
+
     followActive = true
 
     local playerCoords = GetEntityCoords(cache.ped)
     local camCoords = GetCamCoord(FREE_CAM)
     followOffset = camCoords - playerCoords
+    followBaseHeading = GetEntityHeading(cache.ped)
+    followBaseRot = GetCamRot(FREE_CAM, 2)
 
     CreateThread(function()
         while followActive and camFrozen and DoesCamExist(FREE_CAM) do
-            local newCoords = GetEntityCoords(cache.ped) + followOffset
+
+            local newPlayerCoords = GetEntityCoords(cache.ped)
+            local headingDelta = GetEntityHeading(cache.ped) - followBaseHeading
+            local rotatedOffset = rotateOffsetByHeading(followOffset, headingDelta)
+            local newCoords = newPlayerCoords + rotatedOffset
+
             SetCamCoord(FREE_CAM, newCoords.x, newCoords.y, newCoords.z)
+            SetCamRot(FREE_CAM, followBaseRot.x, followBaseRot.y, followBaseRot.z + headingDelta, 2)
             Wait(0)
         end
         followActive = false
@@ -232,8 +313,6 @@ local function stopFollowCam()
     followActive = false
 end
 
--- Starts (or resumes) the freecam. If a frozen cam already exists, it is reused
--- from its current position/rotation instead of being recreated.
 local function startCam()
     if camActive then return end
     stopFollowCam()
@@ -248,6 +327,8 @@ local function startCam()
         SetCamAffectsAiming(FREE_CAM, false)
     end
 
+    buildInstructionalButtons()
+
     CreateThread(function()
         while camActive do
             processCamControls()
@@ -259,14 +340,10 @@ local function startCam()
     end)
 end
 
--- Stops the freecam movement loop.
---   'off'    -> full reset, camera destroyed, control fully restored.
---   'static' -> camera stays exactly where it was left.
---   'follow' -> camera keeps its rotation, but keeps translating with the player.
--- In both freeze cases, control is handed back to the player immediately.
 local function stopCam(mode)
     if not camActive then return end
     camActive = false
+    destroyInstructionalButtons()
 
     if mode == 'static' then
         camFrozen = true
@@ -290,62 +367,71 @@ local function setFreezeMode(mode)
     freezeMode = (freezeMode == mode) and 'off' or mode
 end
 
-lib.registerMenu({
-    id = 'cinematic_cam_menu',
-    title = 'Cinematic Camera',
-    position = 'top-right',
-    onSideScroll = function(selected, scrollIndex, args)
+local function registerCamMenu()
+
+    lib.registerMenu({
+        id = 'cinematic_cam_menu',
+        title = locale('menu_title'),
+        position = 'top-right',
+        onSideScroll = function(selected, scrollIndex, args)
+
+            if selected == 2 then
+                SetTimecycleModifier(Config.Filters[scrollIndex])
+                currFilter = scrollIndex
+            elseif selected == 6 then
+                dofNear = tonumber(Config.NearDof[scrollIndex])
+                SetCamNearDof(FREE_CAM, dofNear)
+            elseif selected == 7 then
+                dofFar = tonumber(Config.FarDof[scrollIndex])
+                SetCamFarDof(FREE_CAM, dofFar)
+            elseif selected == 8 then
+                dofStrength = tonumber(Config.StrengthDof[scrollIndex])
+                SetCamDofStrength(FREE_CAM, dofStrength)
+            end
+        end,
+        onCheck = function(selected, checked, args)
+
+            if selected == 1 then
+                toggleCam()
+            elseif selected == 3 then
+                toggleDof()
+            elseif selected == 4 then
+                toggleBars()
+            elseif selected == 5 then
+                toggleMap()
+            elseif selected == 9 then
+                setFreezeMode('static')
+            elseif selected == 10 then
+                setFreezeMode('follow')
+            end
+        end,
+        onClose = function(keyPressed)
+
+            isMenuOpen = false
+            stopCam(freezeMode)
+        end,
+        options = {
+            {label = locale('toggle_camera'), checked = camActive, icon = 'camera'},
+            {label = locale('camera_filters'), values = Config.Filters, icon = 'camera', defaultIndex = currFilter, description = locale('camera_filters_desc')},
+            {label = locale('toggle_dof'), checked = dofOn, icon = 'eye', description = locale('toggle_dof_desc')},
+            {label = locale('toggle_bars'), checked = barsOn, icon = 'film', description = locale('toggle_bars_desc')},
+            {label = locale('toggle_map'), checked = not IsRadarHidden(), icon = 'map', description = locale('toggle_map_desc')},
+            {label = locale('dof_near'), values = Config.NearDof, icon = 'left-right', description = locale('dof_near_desc')},
+            {label = locale('dof_far'), values = Config.FarDof, icon = 'left-right', description = locale('dof_far_desc')},
+            {label = locale('dof_strength'), values = Config.StrengthDof, icon = 'left-right', description = locale('dof_strength_desc')},
+            {label = locale('freeze_static'), checked = freezeMode == 'static', icon = 'snowflake', description = locale('freeze_static_desc')},
+            {label = locale('freeze_follow'), checked = freezeMode == 'follow', icon = 'video', description = locale('freeze_follow_desc')},
+        }
+    }, function(selected, scrollIndex, args)
+        
         if selected == 2 then
-            SetTimecycleModifier(Config.Filters[scrollIndex])
-            currFilter = scrollIndex
-        elseif selected == 6 then
-            dofNear = tonumber(Config.NearDof[scrollIndex])
-            SetCamNearDof(FREE_CAM, dofNear)
-        elseif selected == 7 then
-            dofFar = tonumber(Config.FarDof[scrollIndex])
-            SetCamFarDof(FREE_CAM, dofFar)
-        elseif selected == 8 then
-            dofStrength = tonumber(Config.StrengthDof[scrollIndex])
-            SetCamDofStrength(FREE_CAM, dofStrength)
+            ClearTimecycleModifier()
+            currFilter = 1
         end
-    end,
-    onCheck = function(selected, checked, args)
-        if selected == 1 then
-            toggleCam()
-        elseif selected == 3 then
-            toggleDof()
-        elseif selected == 4 then
-            toggleBars()
-        elseif selected == 5 then
-            toggleMap()
-        elseif selected == 9 then
-            setFreezeMode('static')
-        elseif selected == 10 then
-            setFreezeMode('follow')
-        end
-    end,
-    onClose = function(keyPressed)
-        isMenuOpen = false
-        stopCam(freezeMode)
-    end,
-    options = {
-        {label = 'Toggle Camera', checked = camActive, icon = 'camera'},
-        {label = 'Camera Filters', values = Config.Filters, icon = 'camera', defaultIndex = currFilter, description = 'Use arrow keys to navigate filters. Hit enter to reset the filter to normal.'},
-        {label = 'Toggle Depth of Field', checked = dofOn, icon = 'eye', description = 'Toggle Depth of Field effect.'},
-        {label = 'Toggle Black Bars', checked = barsOn, icon = 'film', description = 'Toggle cinematic bars.'},
-        {label = 'Toggle Minimap', checked = not IsRadarHidden(), icon = 'map', description = 'Toggle the minimap.'},
-        {label = 'Depth of Field Near', values = Config.NearDof, icon = 'left-right', description = 'Adjust the near focus distance.'},
-        {label = 'Depth of Field Far', values = Config.FarDof, icon = 'left-right', description = 'Adjust the far focus distance.'},
-        {label = 'Depth of Field Strength', values = Config.StrengthDof, icon = 'left-right', description = 'Adjust the strength of the DoF effect.'},
-        {label = 'Freeze Camera on Close (Static)', checked = freezeMode == 'static', icon = 'snowflake', description = 'Closing the menu leaves the camera frozen exactly in place.'},
-        {label = 'Freeze Camera on Close (Follow Player)', checked = freezeMode == 'follow', icon = 'video', description = 'Closing the menu keeps the camera at the same angle and distance, following you as you move.'},
-    }
-}, function(selected, scrollIndex, args)
-    if selected == 2 then
-        ClearTimecycleModifier()
-        currFilter = 1
-    end
-end)
+    end)
+end
+
+registerCamMenu()
 
 RegisterCommand(Config.CommandName, function()
     if isMenuOpen then
@@ -353,16 +439,20 @@ RegisterCommand(Config.CommandName, function()
     else
         isMenuOpen = true
         startCam()
+        registerCamMenu()
         lib.showMenu('cinematic_cam_menu')
     end
 end)
 
-RegisterKeyMapping(Config.CommandName, 'Freecam Menu', 'keyboard', 'F7')
+RegisterKeyMapping(Config.CommandName, locale('keymap_desc'), 'keyboard', 'F7')
 
 AddEventHandler('gameEventTriggered', function(event, data)
+
     if event ~= 'CEventNetworkEntityDamage' then return end
+
     local victim, victimDied = data[1], data[4]
     if not IsPedAPlayer(victim) then return end
+
     if victimDied and NetworkGetPlayerIndexFromPed(victim) == cache.playerId and (IsPedDeadOrDying(victim, true) or IsPedFatallyInjured(victim)) then
         if DoesCamExist(FREE_CAM) then
             resetEverything()
