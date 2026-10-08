@@ -25,5 +25,9 @@
   "ctrl_roll": "Roll",
   "ctrl_zoom": "Zoom",
   "ctrl_speed": "Hold + Scroll: Speed",
-  "ctrl_look": "Look"
+  "ctrl_look": "Look",
+  "bypass_granted": "Bypass enabled.",
+  "bypass_revoked": "Bypass disabled.",
+  "permission_granted": "You can now use /ccambypass.",
+  "permission_revoked": "Your access to /ccambypass has been revoked."
 }

@@ -1,5 +1,29 @@
 local Config = lib.load('config')
 lib.locale()
+
+-- Lets this player exceed Config.MaxDistance. This is a session-only toggle
+-- controlled server-side via /ccambypass (which itself requires a persisted
+-- permission granted by an admin via /ccamgrant). We resync it here in case
+-- this client script restarts while the server still holds the session state.
+local hasBypassPermission = lib.callback.await('ccam:getBypassState', false) or false
+
+RegisterNetEvent('ccam:setBypass', function(state)
+    hasBypassPermission = state
+    lib.notify({
+        title = locale('menu_title'),
+        description = state and locale('bypass_granted') or locale('bypass_revoked'),
+        type = state and 'success' or 'inform'
+    })
+end)
+
+RegisterNetEvent('ccam:permissionChanged', function(granted)
+    lib.notify({
+        title = locale('menu_title'),
+        description = granted and locale('permission_granted') or locale('permission_revoked'),
+        type = granted and 'success' or 'inform'
+    })
+end)
+
 local FREE_CAM
 local offsetRotX, offsetRotY, offsetRotZ = 0.0, 0.0, 0.0
 local precision = 1.0
@@ -65,12 +89,10 @@ local function resetEverything()
     end
 end
 
--- Builds and loads the native "instructional buttons" scaleform (the same
--- one GTA's singleplayer uses for control hints), showing the key currently
--- bound to each control so it adapts automatically to the player's layout
--- and device (keyboard or controller).
 local function buildInstructionalButtons()
+
     instructionalScaleform = RequestScaleformMovie('instructional_buttons')
+
     while not HasScaleformMovieLoaded(instructionalScaleform) do
         Wait(0)
     end
@@ -92,11 +114,14 @@ local function buildInstructionalButtons()
     }
 
     for i = 1, #groups do
+
         BeginScaleformMovieMethod(instructionalScaleform, 'SET_DATA_SLOT')
         ScaleformMovieMethodAddParamInt(i - 1)
+
         for _, control in ipairs(groups[i].controls) do
             ScaleformMovieMethodAddParamTextureNameString(GetControlInstructionalButton(2, control, true))
         end
+
         ScaleformMovieMethodAddParamTextureNameString(groups[i].label)
         EndScaleformMovieMethod()
     end
@@ -109,10 +134,12 @@ local function buildInstructionalButtons()
     ScaleformMovieMethodAddParamInt(0)
     ScaleformMovieMethodAddParamInt(0)
     ScaleformMovieMethodAddParamInt(80)
+
     EndScaleformMovieMethod()
 end
 
 local function destroyInstructionalButtons()
+
     if instructionalScaleform then
         SetScaleformMovieAsNoLongerNeeded(instructionalScaleform)
         instructionalScaleform = nil
@@ -120,6 +147,7 @@ local function destroyInstructionalButtons()
 end
 
 local function setNewFov(setNewFov)
+
     if DoesCamExist(FREE_CAM) then
         local currFov = GetCamFov(FREE_CAM)
         local newFov = currFov + setNewFov
@@ -131,6 +159,7 @@ local function setNewFov(setNewFov)
 end
 
 local function toggleDof()
+
     dofOn = not dofOn
     if dofOn then
         if DoesCamExist(FREE_CAM) then
@@ -225,7 +254,7 @@ local function processCamControls()
     local newPos = processNewPos(camCoords.x, camCoords.y, camCoords.z)
     local currentPos = GetEntityCoords(cache.ped)
 
-    if #(currentPos - vec3(newPos.x, newPos.y, newPos.z)) > Config.MaxDistance then
+    if not hasBypassPermission and #(currentPos - vec3(newPos.x, newPos.y, newPos.z)) > Config.MaxDistance then
 
         if not IsEntityDead(cache.ped) then
             DrawSphere(currentPos.x, currentPos.y, currentPos.z, Config.MaxDistance, 255, 0, 0, 0.1)
@@ -423,7 +452,7 @@ local function registerCamMenu()
             {label = locale('freeze_follow'), checked = freezeMode == 'follow', icon = 'video', description = locale('freeze_follow_desc')},
         }
     }, function(selected, scrollIndex, args)
-        
+
         if selected == 2 then
             ClearTimecycleModifier()
             currFilter = 1

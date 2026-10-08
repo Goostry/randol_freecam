@@ -25,5 +25,9 @@
   "ctrl_roll": "Incliner",
   "ctrl_zoom": "Zoom",
   "ctrl_speed": "Maintenir + Molette : Vitesse",
-  "ctrl_look": "Regarder"
+  "ctrl_look": "Regarder",
+  "bypass_granted": "Contournement activé.",
+  "bypass_revoked": "Contournement désactivé.",
+  "permission_granted": "Tu peux désormais utiliser /ccambypass.",
+  "permission_revoked": "Ton accès à /ccambypass a été retiré."
 }
