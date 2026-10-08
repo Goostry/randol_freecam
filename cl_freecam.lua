@@ -41,7 +41,6 @@ local dofStrength = 0.5
 local dofFar = 150.0
 local dofNear = 0.10
 local barsOn = false
-local isMenuOpen = false
 local instructionalScaleform = nil
 
 local function toggleMap()
@@ -436,7 +435,6 @@ local function registerCamMenu()
         end,
         onClose = function(keyPressed)
 
-            isMenuOpen = false
             stopCam(freezeMode)
         end,
         options = {
@@ -463,10 +461,10 @@ end
 registerCamMenu()
 
 RegisterCommand(Config.CommandName, function()
-    if isMenuOpen then
-        lib.hideMenu()
+    -- Passing true makes ox_lib run onClose, which stops the cam; without it the cam keeps running
+    if lib.getOpenMenu() == 'cinematic_cam_menu' then
+        lib.hideMenu(true)
     else
-        isMenuOpen = true
         startCam()
         registerCamMenu()
         lib.showMenu('cinematic_cam_menu')
