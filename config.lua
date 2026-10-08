@@ -2,6 +2,8 @@ return {
     CommandName = 'ccam', -- /ccam
     ToggleCommandName = '+cam', -- /ccam
     MaxDistance = 10.0, -- how far we can go before it kills the camera.
+    StartDistance = 1.5, -- default spawn: this many meters in front of the ped, looking at it
+    StartHeight = 0.5, -- height offset from the ped's origin (roughly face level)
     MinSpeed = 0.1,
     MaxSpeed = 10.0,
     MinFov = 1.0,

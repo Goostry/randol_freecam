@@ -38,6 +38,8 @@ local dofFar = 150.0
 local dofNear = 0.10
 local barsOn = false
 local instructionalScaleform = nil
+local lastCamOffset = nil
+local lastCamRot = nil
 
 local function toggleMap()
     local isRadarVisible = not IsRadarHidden()
@@ -56,6 +58,11 @@ local function toggleBars()
 end
 
 local function resetEverything()
+    if DoesCamExist(FREE_CAM) then
+        lastCamOffset = GetCamCoord(FREE_CAM) - GetEntityCoords(cache.ped)
+        lastCamRot = GetCamRot(FREE_CAM, 2)
+    end
+
     ClearFocus()
     SetCamUseShallowDofMode(FREE_CAM, false)
     RenderScriptCams(false, false, 0, true, false)
@@ -349,7 +356,24 @@ local function startCam()
 
     if not DoesCamExist(FREE_CAM) then
         ClearFocus()
-        FREE_CAM = CreateCamWithParams('DEFAULT_SCRIPTED_CAMERA', GetEntityCoords(cache.ped), 0, 0, 0, GetGameplayCamFov() * 1.0)
+        local pedCoords = GetEntityCoords(cache.ped)
+        local startCoords = GetOffsetFromEntityInWorldCoords(cache.ped, 0.0, Config.StartDistance, Config.StartHeight)
+        local startRot = vector3(0.0, 0.0, GetEntityHeading(cache.ped) + 180.0)
+
+        -- Don't spawn inside a wall standing in front of the ped
+        local probe = StartExpensiveSynchronousShapeTestLosProbe(pedCoords.x, pedCoords.y, startCoords.z, startCoords.x, startCoords.y, startCoords.z, 17, cache.ped, 0)
+        local _, hit, hitCoords = GetShapeTestResult(probe)
+        if hit == 1 then
+            local origin = vector3(pedCoords.x, pedCoords.y, startCoords.z)
+            startCoords = hitCoords - (hitCoords - origin) * (0.3 / math.max(#(hitCoords - origin), 0.3))
+        end
+
+        if lastCamOffset and (hasBypassPermission or #lastCamOffset <= Config.MaxDistance) then
+            startCoords, startRot = startCoords + lastCamOffset, lastCamRot
+        end
+
+        offsetRotX, offsetRotY, offsetRotZ = startRot.x, startRot.y, startRot.z % 360.0
+        FREE_CAM = CreateCamWithParams('DEFAULT_SCRIPTED_CAMERA', startCoords.x, startCoords.y, startCoords.z, startRot.x, startRot.y, startRot.z, GetGameplayCamFov() * 1.0)
         SetCamActive(FREE_CAM, true)
         RenderScriptCams(true, false, 0, true, false)
         SetCamAffectsAiming(FREE_CAM, false)
@@ -465,7 +489,7 @@ end
 registerCamMenu()
 
 RegisterCommand(Config.CommandName, function()
-    -- Passing true makes ox_lib run onClose, which stops the cam; without it the cam keeps running
+
     if lib.getOpenMenu() == 'cinematic_cam_menu' then
         lib.hideMenu(true)
     else
