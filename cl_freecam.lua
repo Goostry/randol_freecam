@@ -1,10 +1,6 @@
 local Config = lib.load('config')
 lib.locale()
 
--- Lets this player exceed Config.MaxDistance. This is a session-only toggle
--- controlled server-side via /ccambypass (which itself requires a persisted
--- permission granted by an admin via /ccamgrant). We resync it here in case
--- this client script restarts while the server still holds the session state.
 local hasBypassPermission = lib.callback.await('ccam:getBypassState', false) or false
 
 RegisterNetEvent('ccam:setBypass', function(state)
@@ -324,6 +320,10 @@ local function startFollowCam()
     CreateThread(function()
         while followActive and camFrozen and DoesCamExist(FREE_CAM) do
 
+            DisableControlAction(0, 1, true) -- Look left/right
+            DisableControlAction(0, 2, true) -- Look up/down
+            DisableFirstPersonCamThisFrame()
+
             local newPlayerCoords = GetEntityCoords(cache.ped)
             local headingDelta = GetEntityHeading(cache.ped) - followBaseHeading
             local rotatedOffset = rotateOffsetByHeading(followOffset, headingDelta)
@@ -353,6 +353,10 @@ local function startCam()
         SetCamActive(FREE_CAM, true)
         RenderScriptCams(true, false, 0, true, false)
         SetCamAffectsAiming(FREE_CAM, false)
+    else
+
+        local rot = GetCamRot(FREE_CAM, 2)
+        offsetRotX, offsetRotY, offsetRotZ = rot.x, rot.y, rot.z % 360.0
     end
 
     buildInstructionalButtons()
@@ -469,7 +473,7 @@ RegisterCommand(Config.CommandName, function()
         registerCamMenu()
         lib.showMenu('cinematic_cam_menu')
     end
-end)
+end, false)
 
 RegisterKeyMapping(Config.CommandName, locale('keymap_desc'), 'keyboard', 'F7')
 
