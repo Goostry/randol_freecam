@@ -1,17 +1,24 @@
 return {
     CommandName = 'ccam', -- /ccam
     ToggleCommandName = '+cam', -- /ccam
+    
     MaxDistance = 10.0, -- how far we can go before it kills the camera.
+
     StartDistance = 1.5, -- default spawn: this many meters in front of the ped, looking at it
     StartHeight = 0.5, -- height offset from the ped's origin (roughly face level)
+
     MinSpeed = 0.1,
     MaxSpeed = 10.0,
+
     MinFov = 1.0,
     MaxFov = 130.0,
+
     DisabledControls = { 30, 31, 21, 36, 22, 44, 38, 71, 72, 59, 60, 85, 86, 15, 14, 37, 80, 228, 229, 172, 173, 37, 44, 178, 244, },
+
     NearDof = { '0.1', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7', '0.8', '0.9', '1.0', },
     FarDof = { '0.1', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7', '0.8', '0.9', '1.0', '1.1','1.2', '1.3', '1.4', '1.5', '1.6', '1.7', '1.8', '1.9', '2.0'},
     StrengthDof = { '0.1', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7', '0.8', '0.9', '1.0', },
+
     Filters = {
         'None',
         'AP1_01_B_IntRefRange',
