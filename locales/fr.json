@@ -34,5 +34,7 @@
   "copycam_success": "Position de la caméra copiée dans le presse-papier.",
   "pastecam_invalid": "Position de caméra invalide (il faut au moins x,y,z,rx,ry,rz).",
   "pastecam_too_far": "Cette position est trop loin. Active le bypass ou rapproche-toi.",
+  "panic_reset": "Caméra libre entièrement réinitialisée.",
+  "panic_reset_keymap": "Caméra Libre : Réinitialisation d'urgence",
   "pastecam_success": "Caméra déplacée à la position collée."
 }

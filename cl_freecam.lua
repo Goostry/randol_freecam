@@ -528,6 +528,30 @@ end, false)
 
 RegisterKeyMapping(Config.CommandName, locale('keymap_desc'), 'keyboard', 'F7')
 
+-- Panic button: forces the freecam back to a clean state, even if something
+-- left it stuck (bugged cam, menu stuck open, radar stuck hidden, etc.).
+local function panicResetCam()
+    freezeMode = 'off'
+    followActive = false
+
+    if lib.getOpenMenu() == 'cinematic_cam_menu' then
+        lib.hideMenu(true)
+    end
+
+    resetEverything()
+
+    -- Don't let a possibly-bugged last position carry over to the next /ccam
+    lastCamOffset = nil
+    lastCamRot = nil
+
+    DisplayRadar(true)
+
+    lib.notify({ title = locale('menu_title'), description = locale('panic_reset'), type = 'success' })
+end
+
+RegisterCommand('ccamreset', panicResetCam, false)
+RegisterKeyMapping('ccamreset', locale('panic_reset_keymap'), 'keyboard', 'F15')
+
 RegisterCommand('copycam', function()
 
     if not DoesCamExist(FREE_CAM) then

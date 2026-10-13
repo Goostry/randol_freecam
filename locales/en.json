@@ -34,5 +34,7 @@
   "copycam_success": "Camera position copied to clipboard.",
   "pastecam_invalid": "Invalid camera position (need at least x,y,z,rx,ry,rz).",
   "pastecam_too_far": "That position is too far away. Get a bypass or move closer.",
+  "panic_reset": "Freecam fully reset.",
+  "panic_reset_keymap": "Freecam: Emergency Reset",
   "pastecam_success": "Camera moved to the pasted position."
 }
