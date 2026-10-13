@@ -13,11 +13,13 @@ RegisterNetEvent('ccam:setBypass', function(state)
 end)
 
 RegisterNetEvent('ccam:permissionChanged', function(granted)
+
     lib.notify({
         title = locale('menu_title'),
         description = granted and locale('permission_granted') or locale('permission_revoked'),
         type = granted and 'success' or 'inform'
     })
+
 end)
 
 local FREE_CAM
@@ -244,7 +246,6 @@ local function processNewPos(x, y, z)
     return idealPos
 end
 
--- In front of the ped, looking at it, pulled back if a wall is in the way
 local function getDefaultCamPlacement()
     local pedCoords = GetEntityCoords(cache.ped)
     local coords = GetOffsetFromEntityInWorldCoords(cache.ped, 0.0, Config.StartDistance, Config.StartHeight)
@@ -275,7 +276,6 @@ end
 local function processCamControls()
     DisableFirstPersonCamThisFrame()
 
-    -- The ped left the allowed area (e.g. driving away): bring the cam back instead of leaving it stuck
     if isCamOutOfRange() then
         snapCamToPed()
     end
@@ -528,9 +528,8 @@ end, false)
 
 RegisterKeyMapping(Config.CommandName, locale('keymap_desc'), 'keyboard', 'F7')
 
--- Panic button: forces the freecam back to a clean state, even if something
--- left it stuck (bugged cam, menu stuck open, radar stuck hidden, etc.).
 local function panicResetCam()
+
     freezeMode = 'off'
     followActive = false
 
@@ -540,7 +539,6 @@ local function panicResetCam()
 
     resetEverything()
 
-    -- Don't let a possibly-bugged last position carry over to the next /ccam
     lastCamOffset = nil
     lastCamRot = nil
 
