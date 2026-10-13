@@ -29,5 +29,10 @@
   "bypass_granted": "Bypass enabled.",
   "bypass_revoked": "Bypass disabled.",
   "permission_granted": "You can now use /ccambypass.",
-  "permission_revoked": "Your access to /ccambypass has been revoked."
+  "permission_revoked": "Your access to /ccambypass has been revoked.",
+  "copycam_no_cam": "No active camera to copy.",
+  "copycam_success": "Camera position copied to clipboard.",
+  "pastecam_invalid": "Invalid camera position (need at least x,y,z,rx,ry,rz).",
+  "pastecam_too_far": "That position is too far away. Get a bypass or move closer.",
+  "pastecam_success": "Camera moved to the pasted position."
 }

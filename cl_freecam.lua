@@ -528,6 +528,54 @@ end, false)
 
 RegisterKeyMapping(Config.CommandName, locale('keymap_desc'), 'keyboard', 'F7')
 
+RegisterCommand('copycam', function()
+
+    if not DoesCamExist(FREE_CAM) then
+        lib.notify({ title = locale('menu_title'), description = locale('copycam_no_cam'), type = 'error' })
+        return
+    end
+
+    local pos = GetCamCoord(FREE_CAM)
+    local rot = GetCamRot(FREE_CAM, 2)
+    local fov = GetCamFov(FREE_CAM)
+
+    lib.setClipboard(('/pastecam %.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.2f'):format(pos.x, pos.y, pos.z, rot.x, rot.y, rot.z, fov))
+    lib.notify({ title = locale('menu_title'), description = locale('copycam_success'), type = 'success' })
+end, false)
+
+RegisterCommand('pastecam', function(_, args)
+
+    local values = {}
+    for v in table.concat(args, ' '):gmatch('[^,]+') do
+        values[#values + 1] = tonumber(v)
+    end
+
+    if #values < 6 then
+        lib.notify({ title = locale('menu_title'), description = locale('pastecam_invalid'), type = 'error' })
+        return
+    end
+
+    local targetPos = vector3(values[1], values[2], values[3])
+
+    if not hasBypassPermission and #(targetPos - GetEntityCoords(cache.ped)) > Config.MaxDistance then
+        lib.notify({ title = locale('menu_title'), description = locale('pastecam_too_far'), type = 'error' })
+        return
+    end
+
+    startCam()
+
+    local rot = vector3(values[4], values[5], values[6])
+    SetCamCoord(FREE_CAM, values[1], values[2], values[3])
+    SetCamRot(FREE_CAM, rot.x, rot.y, rot.z, 2)
+    offsetRotX, offsetRotY, offsetRotZ = rot.x, rot.y, rot.z % 360.0
+
+    if values[7] then
+        SetCamFov(FREE_CAM, values[7])
+    end
+
+    lib.notify({ title = locale('menu_title'), description = locale('pastecam_success'), type = 'success' })
+end, false)
+
 AddEventHandler('gameEventTriggered', function(event, data)
 
     if event ~= 'CEventNetworkEntityDamage' then return end
@@ -543,6 +591,7 @@ AddEventHandler('gameEventTriggered', function(event, data)
 end)
 
 function GetDirectionFromRotation(rotation)
+
     local z = math.rad(rotation.z)
     local x = math.rad(rotation.x)
     local num = math.abs(math.cos(x))

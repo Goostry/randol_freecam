@@ -29,5 +29,10 @@
   "bypass_granted": "Contournement activé.",
   "bypass_revoked": "Contournement désactivé.",
   "permission_granted": "Tu peux désormais utiliser /ccambypass.",
-  "permission_revoked": "Ton accès à /ccambypass a été retiré."
+  "permission_revoked": "Ton accès à /ccambypass a été retiré.",
+  "copycam_no_cam": "Aucune caméra active à copier.",
+  "copycam_success": "Position de la caméra copiée dans le presse-papier.",
+  "pastecam_invalid": "Position de caméra invalide (il faut au moins x,y,z,rx,ry,rz).",
+  "pastecam_too_far": "Cette position est trop loin. Active le bypass ou rapproche-toi.",
+  "pastecam_success": "Caméra déplacée à la position collée."
 }
