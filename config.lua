@@ -1,6 +1,6 @@
 return {
-    CommandName = 'ccam', -- /ccam : toggle the freecam on/off (default key F7)
-    MenuCommandName = 'ccammenu', -- /ccammenu : open/close the menu (no default key, bind it in FiveM settings)
+    CommandName = 'ccam', -- /ccam 
+    MenuCommandName = 'ccammenu', -- /ccammenu 
 
     MaxDistance = 10.0, -- Max distance for the camera to be blocked by red sphere
 

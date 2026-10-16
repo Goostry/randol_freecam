@@ -588,7 +588,7 @@ RegisterCommand(Config.CommandName, function()
     refreshCamMenu()
 end, false)
 
-RegisterKeyMapping(Config.CommandName, locale('keymap_desc'), 'keyboard', 'F7')
+RegisterKeyMapping(Config.CommandName, locale('keymap_desc'), 'keyboard', '')
 
 RegisterCommand(Config.MenuCommandName, function()
 
