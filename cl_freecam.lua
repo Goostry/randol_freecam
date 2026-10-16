@@ -30,6 +30,7 @@ local currFilter = 1
 local camActive = false
 local camFrozen = false
 local freezeMode = 'off' -- 'off' | 'static' | 'follow'
+local lastFreezeMode = 'off'
 local followActive = false
 local followOffset = vector3(0.0, 0.0, 0.0)
 local followBaseHeading = 0.0
@@ -446,11 +447,32 @@ local function stopCam(mode)
     end
 end
 
-local function toggleCam()
+local function turnCamOff()
+    lastFreezeMode = freezeMode
+
     if camActive then
         stopCam('off')
     else
-        startCam()
+        resetEverything()
+    end
+end
+
+local function turnCamOn()
+    startCam()
+
+    if lastFreezeMode ~= 'off' then
+        freezeMode = lastFreezeMode
+        stopCam(freezeMode)
+    end
+end
+
+local function toggleCam()
+    if camActive then
+        turnCamOff()
+    elseif DoesCamExist(FREE_CAM) then
+        startCam() -- frozen: take back control
+    else
+        turnCamOn()
     end
 end
 
@@ -551,12 +573,10 @@ end
 
 RegisterCommand(Config.CommandName, function()
 
-    if camActive then
-        stopCam('off')
-    elseif camFrozen then
-        resetEverything()
+    if camActive or camFrozen then
+        turnCamOff()
     else
-        startCam()
+        turnCamOn()
 
         if menuAutoOpen and lib.getOpenMenu() ~= 'cinematic_cam_menu' then
             registerCamMenu()
@@ -586,6 +606,7 @@ RegisterKeyMapping(Config.MenuCommandName, locale('menu_keymap_desc'), 'keyboard
 local function panicResetCam()
 
     freezeMode = 'off'
+    lastFreezeMode = 'off'
     followActive = false
 
     if lib.getOpenMenu() == 'cinematic_cam_menu' then
