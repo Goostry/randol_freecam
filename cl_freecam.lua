@@ -561,8 +561,20 @@ RegisterCommand('copycam', function()
     local rot = GetCamRot(FREE_CAM, 2)
     local fov = GetCamFov(FREE_CAM)
 
+    -- lib.setClipboard does not work while the menu is open, so hide it without triggering onClose
+    local menuWasOpen = lib.getOpenMenu() == 'cinematic_cam_menu'
+    if menuWasOpen then
+        lib.hideMenu()
+        Wait(100)
+    end
+
     lib.setClipboard(('/pastecam %.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.2f'):format(pos.x, pos.y, pos.z, rot.x, rot.y, rot.z, fov))
     lib.notify({ title = locale('menu_title'), description = locale('copycam_success'), type = 'success' })
+
+    if menuWasOpen then
+        registerCamMenu()
+        lib.showMenu('cinematic_cam_menu')
+    end
 end, false)
 
 RegisterCommand('pastecam', function(_, args)
