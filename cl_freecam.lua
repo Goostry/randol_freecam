@@ -42,6 +42,7 @@ local barsOn = false
 local instructionalScaleform = nil
 local lastCamOffset = nil
 local lastCamRot = nil
+local menuAutoOpen = true
 
 local function toggleMap()
     local isRadarVisible = not IsRadarHidden()
@@ -456,7 +457,6 @@ end
 local function setFreezeMode(mode)
     if not DoesCamExist(FREE_CAM) then return end
 
-    -- unchecking the current freeze mode takes back control of the cam
     if freezeMode == mode then
         startCam()
         return
@@ -467,7 +467,6 @@ local function setFreezeMode(mode)
     if camActive then
         stopCam(mode)
     else
-        -- already frozen in the other mode: switch
         stopFollowCam()
         freezeCam(mode)
     end
@@ -516,6 +515,9 @@ local function registerCamMenu()
                 refreshCamMenu(selected)
             end
         end,
+        onClose = function(keyPressed)
+            menuAutoOpen = false
+        end,
         options = {
             {label = locale('toggle_camera'), checked = camActive, icon = 'camera'},
             {label = locale('camera_filters'), values = Config.Filters, icon = 'camera', defaultIndex = currFilter, description = locale('camera_filters_desc')},
@@ -539,7 +541,6 @@ end
 
 registerCamMenu()
 
--- re-render the open menu so its checkboxes match the current cam state
 refreshCamMenu = function(index)
     if lib.getOpenMenu() ~= 'cinematic_cam_menu' then return end
 
@@ -556,6 +557,12 @@ RegisterCommand(Config.CommandName, function()
         resetEverything()
     else
         startCam()
+
+        if menuAutoOpen and lib.getOpenMenu() ~= 'cinematic_cam_menu' then
+            registerCamMenu()
+            lib.showMenu('cinematic_cam_menu')
+            return
+        end
     end
 
     refreshCamMenu()
@@ -568,6 +575,7 @@ RegisterCommand(Config.MenuCommandName, function()
     if lib.getOpenMenu() == 'cinematic_cam_menu' then
         lib.hideMenu(true)
     else
+        menuAutoOpen = true
         registerCamMenu()
         lib.showMenu('cinematic_cam_menu')
     end
@@ -581,7 +589,7 @@ local function panicResetCam()
     followActive = false
 
     if lib.getOpenMenu() == 'cinematic_cam_menu' then
-        lib.hideMenu(true)
+        lib.hideMenu()
     end
 
     resetEverything()
@@ -608,7 +616,6 @@ RegisterCommand('copycam', function()
     local rot = GetCamRot(FREE_CAM, 2)
     local fov = GetCamFov(FREE_CAM)
 
-    -- lib.setClipboard does not work while the menu is open, so hide it without triggering onClose
     local menuWasOpen = lib.getOpenMenu() == 'cinematic_cam_menu'
     if menuWasOpen then
         lib.hideMenu()
