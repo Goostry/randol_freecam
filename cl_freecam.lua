@@ -85,6 +85,7 @@ local function resetEverything()
     barsOn = false
     camActive = false
     camFrozen = false
+    freezeMode = 'off'
     followActive = false
 
     if instructionalScaleform then
@@ -329,7 +330,7 @@ local function processCamControls()
         SetUseHiDof()
     end
 
-    if instructionalScaleform then
+    if instructionalScaleform and lib.getOpenMenu() == 'cinematic_cam_menu' then
         DrawScaleformMovieFullscreen(instructionalScaleform, 255, 255, 255, 255)
     end
 end
@@ -381,6 +382,7 @@ local function startCam()
     stopFollowCam()
     camActive = true
     camFrozen = false
+    freezeMode = 'off'
 
     if not DoesCamExist(FREE_CAM) then
         ClearFocus()
@@ -414,14 +416,10 @@ local function startCam()
     end)
 end
 
-local function stopCam(mode)
-    if not camActive then return end
-    camActive = false
-    destroyInstructionalButtons()
+local function freezeCam(mode)
+    camFrozen = true
 
     if mode == 'static' then
-        camFrozen = true
-
         CreateThread(function()
             while camFrozen and not followActive and DoesCamExist(FREE_CAM) do
                 if isCamOutOfRange() then
@@ -431,8 +429,17 @@ local function stopCam(mode)
             end
         end)
     elseif mode == 'follow' then
-        camFrozen = true
         startFollowCam()
+    end
+end
+
+local function stopCam(mode)
+    if not camActive then return end
+    camActive = false
+    destroyInstructionalButtons()
+
+    if mode == 'static' or mode == 'follow' then
+        freezeCam(mode)
     else
         camFrozen = false
     end
@@ -447,8 +454,26 @@ local function toggleCam()
 end
 
 local function setFreezeMode(mode)
-    freezeMode = (freezeMode == mode) and 'off' or mode
+    if not DoesCamExist(FREE_CAM) then return end
+
+    -- unchecking the current freeze mode takes back control of the cam
+    if freezeMode == mode then
+        startCam()
+        return
+    end
+
+    freezeMode = mode
+
+    if camActive then
+        stopCam(mode)
+    else
+        -- already frozen in the other mode: switch
+        stopFollowCam()
+        freezeCam(mode)
+    end
 end
+
+local refreshCamMenu
 
 local function registerCamMenu()
 
@@ -476,6 +501,7 @@ local function registerCamMenu()
 
             if selected == 1 then
                 toggleCam()
+                refreshCamMenu(selected)
             elseif selected == 3 then
                 toggleDof()
             elseif selected == 4 then
@@ -484,13 +510,11 @@ local function registerCamMenu()
                 toggleMap()
             elseif selected == 9 then
                 setFreezeMode('static')
+                refreshCamMenu(selected)
             elseif selected == 10 then
                 setFreezeMode('follow')
+                refreshCamMenu(selected)
             end
-        end,
-        onClose = function(keyPressed)
-
-            stopCam(freezeMode)
         end,
         options = {
             {label = locale('toggle_camera'), checked = camActive, icon = 'camera'},
@@ -515,18 +539,41 @@ end
 
 registerCamMenu()
 
+-- re-render the open menu so its checkboxes match the current cam state
+refreshCamMenu = function(index)
+    if lib.getOpenMenu() ~= 'cinematic_cam_menu' then return end
+
+    lib.hideMenu()
+    registerCamMenu()
+    lib.showMenu('cinematic_cam_menu', index)
+end
+
 RegisterCommand(Config.CommandName, function()
+
+    if camActive then
+        stopCam('off')
+    elseif camFrozen then
+        resetEverything()
+    else
+        startCam()
+    end
+
+    refreshCamMenu()
+end, false)
+
+RegisterKeyMapping(Config.CommandName, locale('keymap_desc'), 'keyboard', 'F7')
+
+RegisterCommand(Config.MenuCommandName, function()
 
     if lib.getOpenMenu() == 'cinematic_cam_menu' then
         lib.hideMenu(true)
     else
-        startCam()
         registerCamMenu()
         lib.showMenu('cinematic_cam_menu')
     end
 end, false)
 
-RegisterKeyMapping(Config.CommandName, locale('keymap_desc'), 'keyboard', 'F7')
+RegisterKeyMapping(Config.MenuCommandName, locale('menu_keymap_desc'), 'keyboard', '')
 
 local function panicResetCam()
 

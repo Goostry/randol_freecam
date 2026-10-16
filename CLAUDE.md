@@ -14,7 +14,9 @@ Runtime dependencies: `ox_lib` (menu, notify, callbacks, `lib.addCommand`, `lib.
 
 - **[cl_freecam.lua](cl_freecam.lua)** — all camera logic, held in file-local state (`FREE_CAM`, `camActive`, `camFrozen`, `freezeMode`, `followActive`, DOF/filter values).
   - `startCam` spawns a per-frame thread calling `processCamControls`; `stopCam(mode)` ends that loop. When it ends with `camFrozen == false`, the thread calls `resetEverything()`. With `'static'` the cam stays where it is; with `'follow'` `startFollowCam` runs a second thread that keeps the cam's offset and heading relative to the ped.
-  - Closing the menu (`onClose`) calls `stopCam(freezeMode)`, so the freeze checkboxes decide what happens on close. Re-running `/ccam` restarts control from the frozen cam.
+  - `/ccam` (F7) only toggles the camera: on, or fully off (also from a frozen state). `/ccammenu` (no default key) opens/closes the menu without touching the cam.
+  - `freezeMode` mirrors the actual state: checking a freeze box freezes immediately (`setFreezeMode` → `stopCam`/`freezeCam`), unchecking it calls `startCam` to take back control, and `startCam`/`resetEverything` set it back to `'off'`. After such changes `refreshCamMenu(index)` re-renders the open menu so the checkboxes match. Closing the menu does not affect the cam.
+  - The instructional buttons are only drawn while the menu is open.
   - Movement is clamped to `Config.MaxDistance` from the ped (a red sphere is drawn at the limit) unless `hasBypassPermission` is true. Collisions use a swept-sphere shape test and slide along the hit surface.
   - Menu callbacks branch on **positional option indices** (`selected == 2`, `== 9`, …). If you add, remove, or reorder entries in `options`, update `onSideScroll`, `onCheck`, and the submit callback to match.
   - `registerCamMenu()` is called again every time the menu opens, so `checked` and `defaultIndex` reflect the current state.
@@ -28,4 +30,3 @@ Runtime dependencies: `ox_lib` (menu, notify, callbacks, `lib.addCommand`, `lib.
 ## Conventions
 
 - Client↔server event and callback names use the `ccam:` prefix.
-- `Config.ToggleCommandName` is defined but currently unused.
